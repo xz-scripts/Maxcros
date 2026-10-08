@@ -2,7 +2,11 @@ package com.example.addon.modules;
 
 import meteordevelopment.orbit.EventHandler;
 import meteordevelopment.meteorclient.events.world.TickEvent;
+import meteordevelopment.meteorclient.settings.KeybindSetting;
+import meteordevelopment.meteorclient.settings.Setting;
+import meteordevelopment.meteorclient.settings.SettingGroup;
 import meteordevelopment.meteorclient.systems.modules.Module;
+import meteordevelopment.meteorclient.utils.misc.Keybind;
 import meteordevelopment.meteorclient.utils.player.FindItemResult;
 import meteordevelopment.meteorclient.utils.player.InvUtils;
 import net.minecraft.block.Blocks;
@@ -13,34 +17,53 @@ import net.minecraft.util.hit.HitResult;
 import com.example.addon.Addon;
 
 public class AnchorMacro extends Module {
+    private final SettingGroup sgGeneral = settings.getDefaultGroup();
+
+    private final Setting<Keybind> anchorKeybind = sgGeneral.add(new KeybindSetting.Builder()
+        .name("anchor-keybind")
+        .description("Keybind to execute the anchor sequence.")
+        .defaultValue(Keybind.none())
+        .build()
+    );
+
+    private boolean wasPressed = false;
 
     public AnchorMacro() {
-        super(Addon.CATEGORY, "anchor-macro", "Automatically charges and detonates placed respawn anchors.");
+        super(Addon.CATEGORY, "anchor-macro", "Automatically charges and detonates placed respawn anchors on keybind.");
     }
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
         if (mc.player == null || mc.world == null) return;
 
-        if (mc.crosshairTarget instanceof BlockHitResult hitResult) {
-            if (hitResult.getType() == HitResult.Type.BLOCK) {
-                var blockState = mc.world.getBlockState(hitResult.getBlockPos());
+        boolean isPressed = anchorKeybind.get().isPressed();
 
-                if (blockState.isOf(Blocks.RESPAWN_ANCHOR)) {
-                    FindItemResult glowstone = InvUtils.findInHotbar(Items.GLOWSTONE);
+        if (isPressed && !wasPressed) {
+            executeMacro();
+        }
 
-                    if (glowstone.found()) {
-                        InvUtils.swap(glowstone.slot(), false);
-                        mc.interactionManager.interactBlock(mc.player, Hand.MAIN_HAND, hitResult);
+        wasPressed = isPressed;
+    }
 
-                        int safeSlot = getSafeSlot();
-                        if (safeSlot != -1) {
-                            InvUtils.swap(safeSlot, false);
-                        }
+    private void executeMacro() {
+        if (!(mc.crosshairTarget instanceof BlockHitResult hitResult)) return;
+        if (hitResult.getType() != HitResult.Type.BLOCK) return;
 
-                        mc.interactionManager.interactBlock(mc.player, Hand.MAIN_HAND, hitResult);
-                    }
+        var blockState = mc.world.getBlockState(hitResult.getBlockPos());
+
+        if (blockState.isOf(Blocks.RESPAWN_ANCHOR)) {
+            FindItemResult glowstone = InvUtils.findInHotbar(Items.GLOWSTONE);
+
+            if (glowstone.found()) {
+                InvUtils.swap(glowstone.slot(), false);
+                mc.interactionManager.interactBlock(mc.player, Hand.MAIN_HAND, hitResult);
+
+                int safeSlot = getSafeSlot();
+                if (safeSlot != -1) {
+                    InvUtils.swap(safeSlot, false);
                 }
+
+                mc.interactionManager.interactBlock(mc.player, Hand.MAIN_HAND, hitResult);
             }
         }
     }
